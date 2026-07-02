@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>回転寿司 注文パネル (Wii U軽量版)</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 10px;
+            font-family: sans-serif;
+            background-color: #fcf8f2; color: #333333; /* 寿司店風の明るい背景 */
+            font-size: 14px;
+        }
+        
+        /* ヘッダー */
+        .panel-header {
+            background-color: #ffffff; padding: 10px;
+            border: 2px solid #e0d0b0; margin-bottom: 10px;
+            border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .header-left { float: left; width: 40%; color: #b32d00; font-weight: bold; font-size: 16px; }
+        .header-center { float: left; width: 30%; text-align: center; font-weight: bold; }
+        .header-right { float: right; width: 30%; text-align: right; }
+        .clearfix { clear: both; }
+
+        /* メインレイアウト（テーブル形式でWii U最適化） */
+        .main-table { width: 100%; border-collapse: collapse; }
+        .col-menu { width: 65%; vertical-align: top; padding-right: 10px; }
+        .col-cart { width: 35%; vertical-align: top; }
+        
+        /* メニューエリア */
+        .content-box { background-color: #ffffff; border: 2px solid #e0d0b0; border-radius: 6px; padding: 12px; }
+        .content-title { font-size: 16px; color: #b32d00; margin: 0 0 10px 0; border-bottom: 2px solid #e0d0b0; padding-bottom: 5px; font-weight: bold; }
+        
+        /* 寿司ネタカード（3列並び） */
+        .item-card {
+            float: left; width: 31%; margin: 1%;
+            background-color: #fffbf5; border: 1px solid #e0d0b0; border-radius: 4px; padding: 8px; text-align: center;
+        }
+        .item-icon { font-size: 32px; margin-bottom: 4px; }
+        .item-name { font-size: 14px; font-weight: bold; height: 20px; overflow: hidden; margin-bottom: 4px; color: #111; }
+        .item-price { color: #d63031; font-weight: bold; margin-bottom: 6px; font-size: 13px; }
+        
+        /* 注文ボタン */
+        .btn-add {
+            display: block; width: 100%; background-color: #ff7675; color: #ffffff;
+            padding: 8px 0; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;
+            font-size: 13px;
+        }
+        .btn-add:active { background-color: #e17055; }
+
+        /* カートエリア */
+        .cart-box { background-color: #ffffff; border: 2px solid #e0d0b0; border-radius: 6px; padding: 12px; }
+        .cart-title { font-size: 15px; margin: 0 0 8px 0; border-bottom: 1px solid #e0d0b0; padding-bottom: 4px; font-weight: bold; }
+        .cart-list { min-height: 120px; font-size: 13px; }
+        .cart-item { padding: 6px 0; border-bottom: 1px solid #f5f5f5; }
+        .c-name { float: left; width: 70%; font-weight: bold; }
+        .c-price { float: right; width: 30%; text-align: right; color: #d63031; font-weight: bold; }
+        
+        /* 合計 */
+        .cart-summary { background-color: #fffbf5; border: 1px solid #e0d0b0; padding: 8px; border-radius: 4px; margin: 10px 0; }
+        .total-label { float: left; font-weight: bold; }
+        .total-price { float: right; color: #d63031; font-weight: bold; font-size: 16px; }
+        
+        /* 注文確定ボタン */
+        .btn-order {
+            display: block; width: 100%; background-color: #cccccc; color: #888888;
+            text-align: center; padding: 12px 0; border: none; border-radius: 6px;
+            font-weight: bold; font-size: 15px; cursor: not-allowed;
+        }
+        .btn-order.active { background-color: #2ecc71; color: #ffffff; cursor: pointer; }
+
+        /* ==========================================
+           🎰 スロットゲーム用画面（全面オーバーレイ）
+        ========================================== */
+        .slot-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.9); z-index: 9999;
+            text-align: center; color: #ffffff; padding-top: 50px;
+        }
+        .slot-title { font-size: 20px; color: #f1c40f; font-weight: bold; margin-bottom: 20px; }
+        
+        /* リール（ドラム）のデザイン */
+        .reel-container { margin: 20px auto; width: 240px; background: #222; border: 4px solid #f1c40f; padding: 10px; border-radius: 8px; }
+        .reel { display: inline-block; width: 60px; height: 60px; background: #fff; color: #000; font-size: 36px; line-height: 60px; margin: 0 5px; border-radius: 4px; font-weight: bold; }
+        
+        /* 結果表示文字 */
+        .result-box { font-size: 28px; font-weight: bold; margin-top: 20px; height: 40px; }
+        .status-text { font-size: 14px; color: #aaa; margin-top: 10px; }
+        .btn-close {
+            display: none; margin: 20px auto 0 auto; background-color: #f1c40f; color: #000;
+            padding: 10px 20px; border: none; border-radius: 4px; font-weight: bold; font-size: 16px; cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="panel-header">
+        <div class="header-left">お席: 12番テーブル</div>
+        <div class="header-center">食べた皿数: <span id="plateCount" style="color:#b32d00; font-size:18px;">0</span> 皿</div>
+        <div class="header-right" style="font-size: 12px; color: #666; padding-top:4px;">あと <span id="nextSlot" style="color:red; font-weight:bold;">5</span> 皿でスロット！</div>
+        <div class="clearfix"></div>
+    </div>
+
+    <table class="main-table">
+        <tr>
+            <td class="col-menu">
+                <div class="content-box">
+                    <div class="content-title">にぎり・軍艦（全品100円）</div>
+                    
+                    <div class="item-card">
+                        <div class="item-icon">🍣</div>
+                        <div class="item-name">まぐろ</div>
+                        <div class="item-price">¥100</div>
+                        <button class="btn-add" onclick="add('まぐろ')">1皿追加</button>
+                    </div>
+                    <div class="item-card">
+                        <div class="item-icon">🍣</div>
+                        <div class="item-name">サーモン</div>
+                        <div class="item-price">¥100</div>
+                        <button class="btn-add" onclick="add('サーモン')">1皿追加</button>
+                    </div>
+                    <div class="item-card">
+                        <div class="item-icon">🍣</div>
+                        <div class="item-name">えび</div>
+                        <div class="item-price">¥100</div>
+                        <button class="btn-add" onclick="add('えび')">1皿追加</button>
+                    </div>
+                    <div class="item-card">
+                        <div class="item-icon">🥚</div>
+                        <div class="item-name">たまご</div>
+                        <div class="item-price">¥100</div>
+                        <button class="btn-add" onclick="add('たまご')">1皿追加</button>
+                    </div>
+                    <div class="item-card">
+                        <div class="item-icon">🥑</div>
+                        <div class="item-name">エビアボカド</div>
+                        <div class="item-price">¥100</div>
+                        <button class="btn-add" onclick="add('エビアボカド')">1皿追加</button>
+                    </div>
+                    <div class="item-card">
+                        <div class="item-icon">🌽</div>
+                        <div class="item-name">コーン軍艦</div>
+                        <div class="item-price">¥100</div>
+                        <button class="btn-add" onclick="add('コーン軍艦')">1皿追加</button>
+                    </div>
+                    <div class="clearfix"></div>
+                </div>
+            </td>
+            
+            <td class="col-cart">
+                <div class="cart-box">
+                    <div class="cart-title">未注文の皿</div>
+                    <div id="list" class="cart-list">
+                        <div style="color:#888; text-align:center; padding-top:30px;">お好きなネタを<br>選んでください</div>
+                    </div>
+                    
+                    <div class="cart-summary">
+                        <div class="total-label">今回注文の皿数:</div>
+                        <div id="totalPlates" class="total-price">0 皿</div>
+                        <div class="clearfix"></div>
+                    </div>
+                    
+                    <button id="btnOrder" class="btn-order" onclick="sendOrder()" disabled>まとめて注文する</button>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <div id="slotOverlay" class="slot-overlay">
+        <div class="slot-title">🎉 5皿達成！お楽しみスロット 🎉</div>
+        
+        <div class="reel-container">
+            <div id="reel1" class="reel">❓</div>
+            <div id="reel2" class="reel">❓</div>
+            <div id="reel3" class="reel">❓</div>
+        </div>
+        
+        <div id="resultText" class="result-box"></div>
+        <div id="statusText" class="status-text">まもなくスタートします...</div>
+        
+        <button id="btnClose" class="btn-close" onclick="closeSlot()">画面を閉じる</button>
+    </div>
+
+    <script>
+        var currentCart = ""; // カート用（カンマ区切り文字列）
+        var currentCartCount = 0;
+        
+        var totalEatenPlates = 0; // これまで食べた総皿数
+        var slotTimer;
+        var animationStep = 0;
+
+        // 商品を追加
+        function add(name) {
+            currentCart += name + ";";
+            currentCartCount++;
+            renderCart();
+        }
+
+        // カートの表示更新
+        function renderCart() {
+            var list = document.getElementById("list");
+            var totalPlates = document.getElementById("totalPlates");
+            var btn = document.getElementById("btnOrder");
+            
+            if (currentCart === "") {
+                list.innerHTML = '<div style="color:#888; text-align:center; padding-top:30px;">お好きなネタを<br>選んでください</div>';
+                totalPlates.innerHTML = "0 皿";
+                btn.className = "btn-order";
+                btn.disabled = true;
+                return;
+            }
+
+            var items = currentCart.split(";");
+            var html = "";
+            for (var i = 0; i < items.length - 1; i++) {
+                html += '<div class="cart-item">' +
+                        '<div class="c-name">' + items[i] + '</div>' +
+                        '<div class="c-price">1皿</div>' +
+                        '<div class="clearfix"></div>' +
+                        '</div>';
+            }
+            
+            list.innerHTML = html;
+            totalPlates.innerHTML = currentCartCount + " 皿";
+            btn.className = "btn-order active";
+            btn.disabled = false;
+        }
+
+        // 注文確定ボタンを押したとき
+        function sendOrder() {
+            // 食べた総皿数に、今回注文した分を加算
+            totalEatenPlates += currentCartCount;
+            
+            // カートを空にする
+            currentCart = "";
+            currentCartCount = 0;
+            renderCart();
+            
+            // ヘッダーの皿数表示を更新
+            document.getElementById("plateCount").innerHTML = totalEatenPlates;
+            
+            // 次のスロットまでの残り皿数を計算（5の倍数まであと何皿か）
+            var remainder = totalEatenPlates % 5;
+            var next = 5 - remainder;
+            document.getElementById("nextSlot").innerHTML = next;
+
+            // もし累計が5皿以上になり、今回の注文で5の境界線を越えた（またはちょうどになった）場合、スロットを起動
+            // 例: 元々3皿で、今回3皿頼んで計6皿になった場合もスロット対象
+            if (totalEatenPlates >= 5 && remainder < next) {
+                // 正確に5皿ごと（5, 10, 15...）のタイミングで1回まわす簡易チェック
+                // 今回は「総皿数が前回の5の倍数を超えたら」起動させるため、判定用に前回値を引いて計算しても良いですが、
+                // 分かりやすく「5皿以上貯まるごとに1回スロット」に突入させます。
+                startSlotGame();
+            }
+        }
+
+        // --- 🎰 スロットゲーム処理 ---
+        function startSlotGame() {
+            // スロット画面を表示
+            document.getElementById("slotOverlay").style.display = "block";
+            document.getElementById("resultText").innerHTML = "";
+            document.getElementById("statusText").innerHTML = "まわるよーーー！";
+            document.getElementById("btnClose").style.display = "none";
+            
+            animationStep = 0;
+            // Wii Uでも重くならないよう、少しゆっくりめの150ms間隔でリールをシャッフル
+            slotTimer = setInterval(shuffleReels, 150); 
+        }
+
+        // リールをグルグル回すアニメーション風の処理
+        var marks = ["🍣", "🍤", "🍵", "🎯", "💎"];
+        function shuffleReels() {
+            animationStep++;
+            
+            // ランダムにマークを入れ替える
+            var m1 = marks[Math.floor(Math.random() * marks.length)];
+            var m2 = marks[Math.floor(Math.random() * marks.length)];
+            var m3 = marks[Math.floor(Math.random() * marks.length)];
+            
+            document.getElementById("reel1").innerHTML = m1;
+            document.getElementById("reel2").innerHTML = m2;
+            document.getElementById("reel3").innerHTML = m3;
+            
+            // 15回（約2秒間）シャッフルしたらストップして結果判定
+            if (animationStep > 15) {
+                clearInterval(slotTimer);
+                judgeResult();
+            }
+        }
+
+        // 5%の確率で「あたり」か「はずれ」かを判定する
+        function judgeResult() {
+            // 1から100までのランダムな数字を決める
+            var rng = Math.floor(Math.random() * 100) + 1; 
+            
+            var rText = document.getElementById("resultText");
+            var sText = document.getElementById("statusText");
+            
+            // 1〜5が出たら当たり（5%の確率）
+            if (rng <= 5) {
+                // あたり！リールを「🎯 🎯 🎯」に揃える
+                document.getElementById("reel1").innerHTML = "🎯";
+                document.getElementById("reel2").innerHTML = "🎯";
+                document.getElementById("reel3").innerHTML = "🎯";
+                
+                rText.style.color = "#ff7675";
+                rText.innerHTML = "🎉 あたり！！ 🎉";
+                sText.innerHTML = "景品のカプセルが出てくるよ！";
+            } else {
+                // はずれ… リールをわざとバラバラにする
+                document.getElementById("reel1").innerHTML = "🍣";
+                document.getElementById("reel2").innerHTML = "🍵";
+                document.getElementById("reel3").innerHTML = "🍤";
+                
+                rText.style.color = "#74b9ff";
+                rText.innerHTML = "はずれ 😭";
+                sText.innerHTML = "ざんねん！つぎはあたるといいね！";
+            }
+            
+            // 閉じるボタンを出して、次の操作へ進めるようにする
+            document.getElementById("btnClose").style.display = "block";
+        }
+
+        // スロット画面を閉じる
+        function closeSlot() {
+            document.getElementById("slotOverlay").style.display = "none";
+        }
+    </script>
+</body>
+</html>
